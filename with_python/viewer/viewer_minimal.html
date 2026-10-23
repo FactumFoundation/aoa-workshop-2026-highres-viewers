@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Minimal viewer</title>
+  <style>html, body, #viewer { margin: 0; width: 100%; height: 100%; background: #474747; }</style>
+</head>
+<body>
+  <div id="viewer"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
+  <script>
+    // The shortest possible viewer: one line pointing to the .dzi file.
+    // Browsers do not let a page read .dzi files from the local disk, so open it
+    // through a local server:  python -m http.server 8000  (run inside the viewer folder)
+    OpenSeadragon({
+      id: "viewer",
+      prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/images/",
+      tileSources: "tiles/albedo.dzi"
+    });
+  </script>
+</body>
+</html>

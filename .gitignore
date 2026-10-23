@@ -1,0 +1,12 @@
+# Recordings, generated images and tiles stay local
+**/data/*
+!**/data/.gitkeep
+**/images/
+**/viewer/tiles/
+
+# System and Python files
+__pycache__/
+*.pyc
+Thumbs.db
+desktop.ini
+.DS_Store

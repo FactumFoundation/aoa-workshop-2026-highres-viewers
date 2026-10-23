@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photometric stereo viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /* Neutral grey surround: it does not bias the perception of the albedo colours */
+  :root {
+    --bg: #474747;
+    --panel: rgba(34, 34, 34, 0.9);
+    --text: #ececec;
+    --text-soft: #a9a9a9;
+    --active-bg: #f2f2f2;
+    --active-text: #1d1d1d;
+    --border: #5e5e5e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 15px/1.4 "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #viewer { position: fixed; inset: 0; }
+
+  .label { position: fixed; top: 16px; left: 16px; z-index: 5; max-width: min(28rem, calc(100% - 32px));
+    background: var(--panel); padding: 10px 14px; border-radius: 6px; }
+  .label h1 { margin: 0; font-size: 1.05rem; font-weight: 700; }
+  .label p { margin: 2px 0 0; color: var(--text-soft); font-size: 0.87rem; }
+
+  .controls { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 5;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; width: max-content;
+    background: var(--panel); padding: 8px; border-radius: 10px; max-width: calc(100% - 24px); }
+  .modes { display: flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+  .modes button { font: inherit; color: var(--text); background: none; border: 0; padding: 7px 14px; cursor: pointer; }
+  .modes button + button { border-left: 1px solid var(--border); }
+  .modes button[aria-pressed="true"] { background: var(--active-bg); color: var(--active-text); font-weight: 700; }
+  .modes button:focus-visible, input[type=range]:focus-visible { outline: 2px solid var(--active-bg); outline-offset: 2px; }
+  .modes kbd { font: inherit; font-size: 0.75em; opacity: 0.6; margin-left: 4px; }
+
+  .fade { display: none; align-items: center; gap: 8px; padding: 0 6px; color: var(--text-soft); font-size: 0.87rem; }
+  .fade.visible { display: flex; }
+  .fade input { width: 160px; accent-color: var(--active-bg); }
+
+  .notice { position: fixed; inset: 0; display: none; place-items: center; z-index: 6; padding: 24px; }
+  .notice.visible { display: grid; }
+  .notice div { background: var(--panel); padding: 18px 22px; border-radius: 8px; max-width: 34rem; }
+  .notice code { background: #111; padding: 1px 5px; border-radius: 3px; }
+
+  @media (max-width: 560px) {
+    .modes kbd { display: none; }
+    .modes button { padding: 7px 10px; }
+    .fade input { width: 120px; }
+  }
+</style>
+</head>
+<body>
+<div id="viewer"></div>
+
+<header class="label">
+  <h1 id="title">Untitled piece</h1>
+  <p>Photometric stereo: albedo, relief and overlay</p>
+</header>
+
+<nav class="controls" aria-label="Layers">
+  <div class="modes" role="group">
+    <button data-mode="albedo" aria-pressed="true">Albedo<kbd>1</kbd></button>
+    <button data-mode="relief" aria-pressed="false">Relief<kbd>2</kbd></button>
+    <button data-mode="overlay" aria-pressed="false">Overlay<kbd>3</kbd></button>
+    <button data-mode="compare" aria-pressed="false">Compare<kbd>4</kbd></button>
+  </div>
+  <label class="fade" id="fade">Albedo
+    <input type="range" id="mix" min="0" max="1" step="0.01" value="0.5" aria-label="Fade between albedo and relief">
+    Relief</label>
+</nav>
+
+<div class="notice" id="notice"><div>
+  <strong>The tiles could not be loaded.</strong>
+  <p>Check that the <code>tiles</code> folder sits next to this file, that its folder names match
+  <code>CONFIG</code>, and that <code>width</code> and <code>height</code> are the real image size.</p>
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
+<script>
+  // ——— Settings: the only part to edit for each piece ———
+  const CONFIG = {
+    title: "Untitled piece",
+    format: "dzi",       // "dzi" or "zoomify"
+    // Image size in pixels. The tiling script fills these in. With them, the viewer opens
+    // with a double-click; with null it reads them itself but then needs a web server.
+    width: null,
+    height: null,
+    layers: {
+      albedo:  "tiles/albedo",
+      relief:  "tiles/relief",
+      overlay: "tiles/overlay"
+    }
+  };
+
+  document.getElementById("title").textContent = CONFIG.title;
+  document.title = CONFIG.title + " · Viewer";
+
+  const viewer = OpenSeadragon({
+    id: "viewer",
+    prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/images/",
+    showNavigator: window.innerWidth > 600,   // on phones the minimap would cover the controls
+    navigatorPosition: "BOTTOM_RIGHT",
+    navigationControlAnchor: OpenSeadragon.ControlAnchor.TOP_RIGHT,
+    maxZoomPixelRatio: 4,        // allows zooming beyond 100%
+    visibilityRatio: 0.8,
+    constrainDuringPan: true,
+    animationTime: 0.6
+  });
+
+  const warn = () => document.getElementById("notice").classList.add("visible");
+
+  // Builds the tile source description that OpenSeadragon understands
+  async function source(path) {
+    let { width, height } = CONFIG;
+    if (CONFIG.format === "zoomify") {
+      let tileSize = 256;
+      if (!width || !height) {
+        const xml = await (await fetch(path + "/ImageProperties.xml")).text();
+        const attr = n => Number(xml.match(new RegExp(n + '="(\\d+)"'))[1]);
+        width = attr("WIDTH"); height = attr("HEIGHT"); tileSize = attr("TILESIZE");
+      }
+      return { type: "zoomifytileservice", width: width, height: height, tileSize: tileSize, tilesUrl: path + "/" };
+    }
+    if (!width || !height) return path + ".dzi";
+    return { Image: {
+      xmlns: "http://schemas.microsoft.com/deepzoom/2008",
+      Url: path + "_files/", Format: "jpg", Overlap: "1", TileSize: "254",
+      Size: { Width: String(width), Height: String(height) }
+    } };
+  }
+
+  // The three layers share the same coordinates, so they stay aligned pixel for pixel
+  const layers = {};
+  let mode = "albedo";
+  const order = ["albedo", "relief", "overlay"];
+
+  order.forEach(async (name, i) => {
+    try {
+      viewer.addTiledImage({
+        tileSource: await source(CONFIG.layers[name]),
+        index: i,
+        opacity: name === "albedo" ? 1 : 0,
+        preload: true,             // loads hidden layers too, so switching is instant
+        success: e => { layers[name] = e.item; apply(); },
+        error: warn
+      });
+    } catch (e) { warn(); }
+  });
+
+  // If tiles fail before any tile has loaded, the paths are wrong
+  let tilesLoaded = 0;
+  viewer.addHandler("tile-loaded", () => tilesLoaded++);
+  viewer.addHandler("tile-load-failed", () => { if (!tilesLoaded) warn(); });
+
+  const mix = document.getElementById("mix");
+
+  function apply() {
+    const o = { albedo: 0, relief: 0, overlay: 0 };
+    if (mode === "compare") { o.albedo = 1; o.relief = Number(mix.value); }
+    else o[mode] = 1;
+    for (const n in layers) layers[n].setOpacity(o[n]);
+    document.getElementById("fade").classList.toggle("visible", mode === "compare");
+    document.querySelectorAll(".modes button").forEach(b =>
+      b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+  }
+
+  function setMode(m) { mode = m; apply(); }
+
+  document.querySelectorAll(".modes button").forEach(b =>
+    b.addEventListener("click", () => setMode(b.dataset.mode)));
+  mix.addEventListener("input", apply);
+
+  const keys = { "1": "albedo", "2": "relief", "3": "overlay", "4": "compare" };
+  document.addEventListener("keydown", e => {
+    if (keys[e.key] && !e.target.matches("input")) setMode(keys[e.key]);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Minimal viewer</title>
+  <style>html, body, #viewer { margin: 0; width: 100%; height: 100%; background: #474747; }</style>
+</head>
+<body>
+  <div id="viewer"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
+  <script>
+    OpenSeadragon({
+      id: "viewer",
+      prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/images/",
+      tileSources: {
+        type: "zoomifytileservice",
+        width: null,      // image size in pixels, filled in by make_tiles.bat
+        height: null,
+        tilesUrl: "tiles/albedo/"
+      }
+    });
+  </script>
+</body>
+</html>
