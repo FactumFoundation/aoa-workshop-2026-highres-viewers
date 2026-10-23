@@ -100,7 +100,8 @@ def main():
                    help="how much the relief darkens the overlay, 0-1 (0.6 = Multiply at 60%%)")
     p.add_argument("--stretch", action="store_true", help="expand the albedo contrast (percentile stretch)")
     p.add_argument("--gamma", type=float, default=1.0, help="2.2 if the albedo is linear")
-    p.add_argument("--azimuth", type=float, default=315, help="height maps only: light direction in degrees")
+    p.add_argument("--azimuth", type=float, default=45,
+                   help="height maps only: light direction in degrees, clockwise from the top (45 = top right)")
     p.add_argument("--altitude", type=float, default=45, help="height maps only: light elevation in degrees")
     p.add_argument("--exaggeration", type=float, default=1.0, help="height maps only: vertical exaggeration")
     p.add_argument("--pixel-size", type=float, default=1.0,

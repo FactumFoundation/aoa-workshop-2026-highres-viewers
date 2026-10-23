@@ -25,6 +25,7 @@ with_python/
     viewer_minimal.html the shortest possible viewer, for teaching
     tiles/              created by make_tiles.py
   process.py            makes the three JPEGs
+  render_relief.py      example: renders a shaded relief from a depth map
   make_tiles.py         cuts them into tiles for the viewer
   requirements.txt      Python packages needed
 ```
@@ -67,7 +68,7 @@ Options you can add:
 | `--stretch` | off | Expands the albedo contrast between the 0.1 and 99.9 percentiles |
 | `--gamma` | 1.0 | Use 2.2 if the albedo is in linear space |
 | `--quality` | 95 | JPEG quality |
-| `--azimuth` | 315 | Height maps only: light direction in degrees (315 = from the top left) |
+| `--azimuth` | 45 | Height maps only: light direction in degrees, clockwise from the top (45 = from the top right) |
 | `--altitude` | 45 | Height maps only: light elevation; lower values give more raking light |
 | `--exaggeration` | 1.0 | Height maps only: vertical exaggeration of the relief |
 | `--pixel-size` | 1.0 | Height maps only: pixel size in the same unit as the heights, e.g. 0.05 for 0.05 mm |
@@ -79,6 +80,45 @@ python process.py data\albedo.tif data\heights.tif --pixel-size 0.05 --exaggerat
 ```
 
 If the computed relief looks flat, raise `--exaggeration` or check `--pixel-size`. JPEG cannot exceed 65,500 px on either side.
+
+### Example: render the relief from a depth map
+
+Instead of Selene's shaded image, you can start from the depth map (the integrated surface heights) and render the shaded relief yourself. This lets you choose the light, the vertical exaggeration and the units, and compare several lights.
+
+1. Copy the depth map into `data`. It can be a 32-bit floating-point TIFF, or a 16-bit TIFF or PNG.
+2. Render it with the standard light, from azimuth 45° (top right) at 45° elevation:
+
+```
+python render_relief.py data\depthmap_m1.tif
+```
+
+3. Open the result, `data\depthmap_m1_render.png`. The script also prints the median slope of the surface; if the relief will look flat, it suggests an `--exaggeration` value to try:
+
+```
+python render_relief.py data\depthmap_m1.tif --pixel-size 0.05 --exaggeration 12
+```
+
+4. Use the render as the relief in Step 2:
+
+```
+python process.py data\albedo_m1.tif data\depthmap_m1_render.png
+```
+
+To compare raking light from several directions, give several azimuths. Each one is saved as a separate PNG ending in `_az45`, `_az135` and so on:
+
+```
+python render_relief.py data\depthmap_m1.tif --azimuth 45 135 225 315
+```
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `--azimuth` | 45 | Light direction in degrees, clockwise from the top of the image; several values make several renders |
+| `--elevation` | 45 | Light elevation in degrees; lower values give more raking light |
+| `--exaggeration` | 1.0 | Vertical exaggeration |
+| `--pixel-size` | 1.0 | Pixel size in the same unit as the depths, e.g. 0.05 for 0.05 mm |
+| `-o` | next to the input | Output PNG file |
+
+You can also give the depth map straight to `process.py`, which recognises 32-bit files and renders them with the same light. `render_relief.py` is useful to check and adjust the render before making the overlay.
 
 ## Step 3. Make the tiles
 
